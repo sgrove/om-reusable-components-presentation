@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>(Understanding UI complexity)</title>
+<meta name="author" content="(Sean Grove)"/>
+<link rel="stylesheet" href="file:///Users/sgrove/.emacs.d/support/reveal.js/css/reveal.min.css"/>
+<link rel="stylesheet" href="file:///Users/sgrove/.emacs.d/support/reveal.js/css/theme/default.css" id="theme"/>
+
+<link rel="stylesheet" href="file:///Users/sgrove/.emacs.d/support/reveal.js/css/print/pdf.css" type="text/css" media="print"/>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+<section>
+<h1>Understanding UI complexity</h1>
+<h2>Sean Grove</h2>
+<h2><a href="mailto:@sgrove">@sgrove</a></h2>
+<h2></h2></section>
+<section>
+<h2>Table of Contents</h2><ul>
+<li>
+<a href="#sec-1">Browser UI Issues</a>
+</li>
+<li>
+<a href="#sec-2">Why is reusability difficult?</a>
+<ul>
+<li>
+<a href="#sec-2-1">Ingredients in UI</a>
+</li>
+<li>
+<a href="#sec-2-2">Component-tree vs App-state</a>
+<ul>
+<li>
+<a href="#sec-2-2-1">Small example</a>
+</li>
+</ul>
+<li>
+<a href="#sec-2-3">A rock and a hard place</a>
+</li>
+</ul>
+<li>
+<a href="#sec-3">Baby-steps: Components that build components</a>
+</li>
+<li>
+<a href="#sec-4">Paths, transforms, and separation</a>
+<ul>
+<li>
+<a href="#sec-4-1">Paths &amp; transforms</a>
+</li>
+<li>
+<a href="#sec-4-2">Example</a>
+</li>
+<li>
+<a href="#sec-4-3">1 step further&#x2026;</a>
+</li>
+<li>
+<a href="#sec-4-4">Separation achieved</a>
+</li>
+</ul>
+<li>
+<a href="#sec-5">Why?</a>
+</li>
+<li>
+<a href="#sec-6">Demo</a>
+</li>
+<li>
+<a href="#sec-7">Future topics:</a>
+</li>
+</ul>
+</section>
+<section>
+<section id="sec-1" >
+
+<h2>Browser UI Issues</h2>
+<ul class="org-ul">
+<li>Reusability
+</li>
+<li>Tooling
+</li>
+<li>Correctness
+</li>
+</ul>
+</section>
+</section>
+<section>
+<section id="sec-2" >
+
+<h2>Why is reusability difficult?</h2>
+</section>
+<section id="sec-2-1" >
+
+<h3>Ingredients in UI</h3>
+<ul class="org-ul">
+<li>Component-tree
+</li>
+<li>App-state (+ structure)
+</li>
+<li>Layout
+</li>
+<li>Styling
+</li>
+</ul>
+</section>
+<section id="sec-2-2" >
+
+<h3>Component-tree vs App-state</h3>
+<p>
+Separate ideas, but naturally mutually-infectious
+</p>
+
+</section>
+<section id="sec-2-2-1" >
+
+<h4>Small example</h4>
+<p>
+Chat app with tab-bar control
+</p>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">ns</span> 'examples.small-1
+<span class="linenr"> 2: </span>  (<span style="color: #00ff00;">:require</span> [om.core <span style="color: #00ff00;">:as</span> om]
+<span class="linenr"> 3: </span>            [om.dom <span style="color: #00ff00;">:as</span> dom]))
+<span class="linenr"> 4: </span>
+<span class="linenr"> 5: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">app-state</span>
+<span class="linenr"> 6: </span>  (<span style="color: #ffaa00;">atom</span> <span style="color: #00ff00;">:channels</span> {<span style="color: #ffff00;">"lobby"</span> {<span style="color: #00ff00;">:order</span> 0,
+<span class="linenr"> 7: </span>                            <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Lobby"</span>}
+<span class="linenr"> 8: </span>                   <span style="color: #ffff00;">"the-war-room"</span> {<span style="color: #00ff00;">:order</span> 1
+<span class="linenr"> 9: </span>                                   <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"The War Room"</span>}}))
+<span class="linenr">10: </span>
+<span class="linenr">11: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">navbar-com</span> [data owner opts]
+<span class="linenr">12: </span>  (om/component
+<span class="linenr">13: </span>   (<span style="color: #00ffff;">let</span> [channels (<span style="color: #ffaa00;">sort-by</span> <span style="color: #00ff00;">:order</span> (<span style="color: #ffaa00;">vals</span> (<span style="color: #00ff00;">:channels</span> data)))]
+<span class="linenr">14: </span>     (dom/navbar nil
+<span class="linenr">15: </span>                 (<span style="color: #ffaa00;">map</span> (<span style="color: #00ffff;">fn</span> [link]
+<span class="linenr">16: </span>                        (dom/a nil (<span style="color: #00ff00;">:title</span> link))) channels)))))
+<span class="linenr">17: </span>
+<span class="linenr">18: </span>(om/<span style="color: #cdcd00;">root</span> navbar-com app-state
+<span class="linenr">19: </span>         {<span style="color: #00ff00;">:target</span> (js/document.<span style="color: #ffaa00;">getElementById</span> <span style="color: #ffff00;">"examples-small-1"</span>)})
+</pre>
+</div>
+
+</section>
+<section>
+<ul class="org-ul">
+<li><code>navbar-com</code> already has rudimentary awareness of <code>app-state</code>'s structure. 
+</li>
+<li>Should all consumers of my navbar-com put their links under a <code>:channels</code> key?
+</li>
+</ul>
+
+<p>
+&#x2026; Probably not, so let's make it more generic, and change our <code>app-state</code> to match.   
+</p>
+
+</section>
+<section>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">app-state</span>
+<span class="linenr"> 2: </span>  (<span style="color: #ffaa00;">atom</span> <span style="color: #00ff00;">:channels</span> {<span style="color: #ffff00;">"lobby"</span> {<span style="color: #00ff00;">:order</span> 0
+<span class="linenr"> 3: </span>                            <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Lobby"</span>}
+<span class="linenr"> 4: </span>                   <span style="color: #ffff00;">"the-war-room"</span> {<span style="color: #00ff00;">:order</span> 1
+<span class="linenr"> 5: </span>                                   <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"The War Room"</span>}}))
+<span class="linenr"> 6: </span>
+<span class="linenr"> 7: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">generic-navbar-com</span> [data owner opts]
+<span class="linenr"> 8: </span>  (om/component
+<span class="linenr"> 9: </span>   (<span style="color: #00ffff;">let</span> [make-link (<span style="color: #00ffff;">fn</span> [link] (dom/a nil (<span style="color: #00ff00;">:title</span> link)))]
+<span class="linenr">10: </span>     (dom/navbar nil (<span style="color: #ffaa00;">map</span> make-link (<span style="color: #00ff00;">:sorted-links</span> data))))))
+<span class="linenr">11: </span>
+<span class="linenr">12: </span>(om/<span style="color: #cdcd00;">root</span> generic-navbar-com
+<span class="linenr">13: </span>         (<span style="color: #ffaa00;">swap!</span> app-state
+<span class="linenr">14: </span>                (<span style="color: #00ffff;">fn</span> [state]
+<span class="linenr">15: </span>                  (<span style="color: #ffaa00;">assoc</span> <span style="color: #00ff00;">:sorted-links</span> (<span style="color: #ffaa00;">sort-by</span> <span style="color: #00ff00;">:order</span> (<span style="color: #ffaa00;">vals</span> state)))))
+<span class="linenr">16: </span>         {<span style="color: #00ff00;">:target</span> (js/document.<span style="color: #ffaa00;">getElementById</span> <span style="color: #ffff00;">"examples-small-1"</span>)})
+</pre>
+</div>
+</section>
+<section>
+<ul class="org-ul">
+<li><code>generic-navbar-com</code> is more generic, but the required structure leaked into our app-state
+</li>
+<li>Gets worse as components nest
+</li>
+</ul>
+
+</section>
+<section>
+<p>
+Let's add a drop down menu
+</p>
+
+</section>
+<section>
+
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">drop-down-com</span> [data owner opts]
+<span class="linenr"> 2: </span>  (om/component
+<span class="linenr"> 3: </span>   (<span style="color: #00ffff;">let</span> [open? (<span style="color: #00ff00;">:open?</span> data)
+<span class="linenr"> 4: </span>         dd-item (<span style="color: #00ffff;">fn</span> [item]
+<span class="linenr"> 5: </span>                   (dom/li #js {<span style="color: #00ff00;">:id</span> (<span style="color: #00ff00;">:id</span> item)} (<span style="color: #00ff00;">:title</span> item)))]
+<span class="linenr"> 6: </span>     (dom/div nil
+<span class="linenr"> 7: </span>              (dom/h3 nil (<span style="color: #ffaa00;">str</span> (<span style="color: #00ff00;">:title</span> data)))
+<span class="linenr"> 8: </span>              (<span style="color: #ffaa00;">apply</span> dom/ul nil
+<span class="linenr"> 9: </span>                     (<span style="color: #00ffff;">when</span> (<span style="color: #00ff00;">:open?</span> data)
+<span class="linenr">10: </span>                       (<span style="color: #ffaa00;">map</span> dd-item (<span style="color: #00ff00;">:items</span> data))))))))
+<span class="linenr">11: </span>
+<span class="linenr">12: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">generic-navbar-com</span> [data owner opts]
+<span class="linenr">13: </span>  (om/component
+<span class="linenr">14: </span>   (dom/navbar nil
+<span class="linenr">15: </span>               (<span style="color: #ffaa00;">map</span> (<span style="color: #00ffff;">fn</span> [link]
+<span class="linenr">16: </span>                      (dom/a nil (<span style="color: #00ff00;">:title</span> link))) (<span style="color: #00ff00;">:sorted-links</span> data))
+<span class="linenr">17: </span>               (om/build drop-down-com
+<span class="linenr">18: </span>                         (om/assoc data
+<span class="linenr">19: </span>                           <span style="color: #00ff00;">:title</span> (<span style="color: #00ff00;">:current-user-email</span> data)
+<span class="linenr">20: </span>                           <span style="color: #00ff00;">:items</span> [{<span style="color: #00ff00;">:id</span> <span style="color: #00ff00;">:help</span> <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Help"</span>}
+<span class="linenr">21: </span>                                   {<span style="color: #00ff00;">:id</span> <span style="color: #00ff00;">:logout</span> <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Logout"</span>}])))))
+<span class="linenr">22: </span>
+<span class="linenr">23: </span>(om/<span style="color: #cdcd00;">root</span> navbar-com (<span style="color: #ffaa00;">swap!</span> app-state
+<span class="linenr">24: </span>                           (<span style="color: #00ffff;">fn</span> [state]
+<span class="linenr">25: </span>                             (<span style="color: #ffaa00;">assoc</span> <span style="color: #00ff00;">:sorted-links</span>
+<span class="linenr">26: </span>                               (<span style="color: #ffaa00;">sort-by</span> <span style="color: #00ff00;">:order</span> (<span style="color: #ffaa00;">vals</span> state)))))
+<span class="linenr">27: </span>         {<span style="color: #00ff00;">:target</span> (js/document.<span style="color: #ffaa00;">getElementById</span> <span style="color: #ffff00;">"examples-small-1"</span>)})
+</pre>
+</div>
+</section>
+<section>
+
+<ul class="org-ul">
+<li>Put knowledge about the internals of the drop-down into our <code>generic-navbar-com</code>
+</li>
+<li><b>Also</b> knowledge about our <code>app-state</code> structure, so it can transform our app-state into <code>drop-down-com</code>-consumable data
+</li>
+</ul>
+</section>
+<section id="sec-2-3" >
+
+<h3>A rock and a hard place</h3>
+<ul class="org-ul">
+<li>Put knowledge about our component-structure into our domain-model
+</li>
+<li>Or put knowledge of our app-state structure into our component tree
+</li>
+<li>Additionally, to modify our component tree, we must open up each function and insert new components in
+</li>
+<li>And in any case, it's going to be a nightmare to build tooling around this.
+</li>
+</ul>
+</section>
+
+</section>
+<section>
+<section id="sec-3" >
+
+<h2>Baby-steps: Components that build components</h2>
+<p>
+Can make our components more reusable by
+</p>
+
+<ul class="org-ul">
+<li>Making (much!) smaller components
+</li>
+<li>Requiring components to be more generic in what they accept
+</li>
+</ul>
+
+<p>
+To start with, we'll make the navbar accept two components, and the drop-down will accept a sub-component to render
+</p>
+
+</section>
+<section>
+
+<p>
+Generic drop-down component:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">drop-down-com</span> [data owner opts]
+<span class="linenr"> 2: </span>  (om/component
+<span class="linenr"> 3: </span>   (<span style="color: #00ffff;">let</span> [open? (<span style="color: #00ff00;">:open?</span> data)
+<span class="linenr"> 4: </span>         dd-item (<span style="color: #00ffff;">fn</span> [item]
+<span class="linenr"> 5: </span>                  (dom/li #js {<span style="color: #00ff00;">:id</span> (<span style="color: #00ff00;">:id</span> item)}
+<span class="linenr"> 6: </span>                          (om/build (<span style="color: #00ff00;">:sub-com</span> data) item)))]
+<span class="linenr"> 7: </span>     (dom/div nil
+<span class="linenr"> 8: </span>              (dom/h3 nil (<span style="color: #ffaa00;">str</span> (<span style="color: #00ff00;">:title</span> data)))
+<span class="linenr"> 9: </span>              (<span style="color: #ffaa00;">apply</span> dom/ul nil
+<span class="linenr">10: </span>                     (<span style="color: #00ffff;">when</span> (<span style="color: #00ff00;">:open?</span> data)
+<span class="linenr">11: </span>                       (<span style="color: #ffaa00;">map</span> dd-item (<span style="color: #00ff00;">:items</span> data))))))))
+</pre>
+</div>
+
+</section>
+<section>
+<p>
+Generic tab component:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr">1: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">tab-bar-com</span> [data owner opts]
+<span class="linenr">2: </span>  (om/component
+<span class="linenr">3: </span>   (dom/div nil
+<span class="linenr">4: </span>            (<span style="color: #ffaa00;">map</span> (<span style="color: #00ffff;">fn</span> [link]
+<span class="linenr">5: </span>                   (dom/a nil (<span style="color: #00ff00;">:title</span> link))) (<span style="color: #00ff00;">:sorted-links</span> data)))))
+</pre>
+</div>
+
+</section>
+<section>
+
+<p>
+Generic nav-bar component:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr">1: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">generic-navbar-com</span> [data owner opts]
+<span class="linenr">2: </span>  (om/component
+<span class="linenr">3: </span>   (dom/navbar nil
+<span class="linenr">4: </span>               (om/build (<span style="color: #00ff00;">:sub-com-1</span> data) (<span style="color: #00ff00;">:sub-com-1-data</span> data))
+<span class="linenr">5: </span>               (om/build (<span style="color: #00ff00;">:sub-com-2</span> data) (<span style="color: #00ff00;">:sub-com-2-data</span> data)))))
+</pre>
+</div>
+</section>
+<section>
+<p>
+Generic text component:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr">1: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">text-com</span> [data owner]
+<span class="linenr">2: </span>  (om/component
+<span class="linenr">3: </span>   (dom/span nil (<span style="color: #00ff00;">:content</span> data))))
+</pre>
+</div>
+
+</section>
+<section>
+<p>
+These are all such small components - are they really useful? Let's see what our app looks like now&#x2026;
+</p>
+</section>
+<section>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(om/<span style="color: #cdcd00;">root</span> navbar-com
+<span class="linenr"> 2: </span>  (<span style="color: #ffaa00;">swap!</span> app-state
+<span class="linenr"> 3: </span>     (<span style="color: #00ffff;">fn</span> [state]
+<span class="linenr"> 4: </span>       (<span style="color: #ffaa00;">assoc</span> state
+<span class="linenr"> 5: </span>           <span style="color: #00ff00;">:sub-com-1</span> channel-links-com
+<span class="linenr"> 6: </span>           <span style="color: #00ff00;">:sub-com-1-data</span> {<span style="color: #00ff00;">:sorted-links</span> (<span style="color: #ffaa00;">sort-by</span> <span style="color: #00ff00;">:order</span> (<span style="color: #ffaa00;">vals</span> state))}
+<span class="linenr"> 7: </span>           <span style="color: #00ff00;">:sub-com-2</span> drop-down-com
+<span class="linenr"> 8: </span>           <span style="color: #00ff00;">:sub-com-2-data</span> {<span style="color: #00ff00;">:title</span> (<span style="color: #00ff00;">:current-user-email</span> state)
+<span class="linenr"> 9: </span>                            <span style="color: #00ff00;">:open?</span> true
+<span class="linenr">10: </span>                            <span style="color: #00ff00;">:sub-com</span> text-com
+<span class="linenr">11: </span>                            <span style="color: #00ff00;">:items</span> [{<span style="color: #00ff00;">:id</span> <span style="color: #ffff00;">"help"</span> <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Help"</span>}
+<span class="linenr">12: </span>                                    {<span style="color: #00ff00;">:id</span> <span style="color: #ffff00;">"logout"</span> <span style="color: #00ff00;">:title</span> <span style="color: #ffff00;">"Logout"</span>}]})))
+<span class="linenr">13: </span>  {<span style="color: #00ff00;">:target</span> (js/document.<span style="color: #ffaa00;">getElementById</span> <span style="color: #ffff00;">"examples-small-1"</span>)})
+</pre>
+</div>
+</section>
+<section>
+<p>
+Overall, a win:
+</p>
+<ul class="org-ul">
+<li>Components are more generic, know little about <code>app-state</code> structure when building sub-components
+</li>
+<li>Using this technique, we could start to build up a library of reusable components.
+</li>
+<li>It's a tree! We can build a tool to compose components into other components, building up the tree
+</li>
+</ul>
+<p>
+Still, a lot of that structure has been pushed into <code>app-state</code>, making it more difficult to reason about domain-data, app-logic and UI-data.
+</p>
+
+</section>
+<section>
+<p>
+New goal:
+</p>
+<ul class="org-ul">
+<li>Separate component-tree from app-state
+</li>
+<li>Both should be data, not code
+</li>
+<li>Minimize infection in either direction
+</li>
+</ul>
+</section>
+</section>
+<section>
+<section id="sec-4" >
+
+<h2>Paths, transforms, and separation</h2>
+<ul class="org-ul">
+<li>Need a new mechanism to connect generic components to our domain-data + app-state: <b><b>Transforms</b></b> &amp; <b><b>Paths</b></b>
+</li>
+<li><b><b>Transforms</b></b> small bits of custom code adapting points in the app-state tree (domain data) to component-consumable data (component-tree)
+</li>
+<li><b><b>Paths</b></b> pointers into the app-state tree, e.g [:app-title], [:audio :volume]
+<ul class="org-ul">
+<li>Similar to lenses
+</li>
+</ul>
+</li>
+</ul>
+
+</section>
+<section id="sec-4-1" >
+
+<h3>Paths &amp; transforms</h3>
+<img src="./img/paths_transforms.png" alt="paths_transforms.png" />
+
+</section>
+<section id="sec-4-2" >
+
+<h3>Example</h3>
+<ul class="org-ul">
+<li>Our text component expects a hashmap with a <code>:content</code> key
+</li>
+<li>We want text-component content to vary with <code>app-state</code> at the paths <code>[:app-title]</code> and <code>[:env]</code>.
+</li>
+</ul>
+
+<p>
+Let's write a simple transformer and wire it up
+</p>
+
+</section>
+<section>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">app-state</span>
+<span class="linenr"> 2: </span>  (<span style="color: #ffaa00;">atom</span> {<span style="color: #00ff00;">:app-title</span> <span style="color: #ffff00;">"Omchaya Title"</span>
+<span class="linenr"> 3: </span>         <span style="color: #00ff00;">:env</span> {<span style="color: #00ff00;">:id</span> <span style="color: #00ff00;">:development</span>}}))
+<span class="linenr"> 4: </span>
+<span class="linenr"> 5: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">text-com</span> [data owner opts]
+<span class="linenr"> 6: </span>  (om/component
+<span class="linenr"> 7: </span>   (dom/span nil (<span style="color: #00ff00;">:content</span> data))))
+<span class="linenr"> 8: </span>
+<span class="linenr"> 9: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">transform-text</span> [values]
+<span class="linenr">10: </span>  <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">Values will have :title and :environment keys,</span>
+<span class="linenr">11: </span>  <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">we need to output a data structure consumable</span>
+<span class="linenr">12: </span>  <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">by text-com</span>
+<span class="linenr">13: </span>  {<span style="color: #00ff00;">:content</span> (<span style="color: #ffaa00;">str</span> (<span style="color: #00ff00;">:title</span> values)
+<span class="linenr">14: </span>                 (<span style="color: #00ffff;">when</span> (<span style="color: #ffaa00;">not=</span> (<span style="color: #00ff00;">:environment</span> values) <span style="color: #00ff00;">:production</span>)
+<span class="linenr">15: </span>                   <span style="color: #ffff00;">" "</span> (<span style="color: #00ff00;">:environment</span> values)))})
+<span class="linenr">16: </span>
+<span class="linenr">17: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">prep-payload</span> [app-state state-paths transform]
+<span class="linenr">18: </span>  (<span style="color: #00ffff;">let</span> [state-data
+<span class="linenr">19: </span>        (<span style="color: #ffaa00;">into</span> {} (<span style="color: #ffaa00;">map</span> (<span style="color: #00ffff;">fn</span> [[k path]]
+<span class="linenr">20: </span>                        [k (<span style="color: #ffaa00;">get-in</span> app-state path)]) state-paths))]
+<span class="linenr">21: </span>    <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">Builds a map, e.g.:</span>
+<span class="linenr">22: </span>    <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">{:title &lt;&gt; :environment &lt;&gt;}</span>
+<span class="linenr">23: </span>    transformed-payload (transform state-data)))
+<span class="linenr">24: </span>
+<span class="linenr">25: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">app-com</span> [app owner opts]
+<span class="linenr">26: </span>  (om/component
+<span class="linenr">27: </span>   (om/build text-com
+<span class="linenr">28: </span>             (prep-payload app {<span style="color: #00ff00;">:title</span> [<span style="color: #00ff00;">:app-title</span>]
+<span class="linenr">29: </span>                                <span style="color: #00ff00;">:environment</span> [<span style="color: #00ff00;">:id</span> <span style="color: #00ff00;">:development</span>]}
+<span class="linenr">30: </span>                           transform-text))))
+</pre>
+</div>
+</section>
+<section id="sec-4-3" >
+
+<h3>1 step further&#x2026;</h3>
+<p>
+Let's make it generically applicable&#x2026;
+</p>
+</section>
+<section>
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr"> 1: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">transform-registry</span>
+<span class="linenr"> 2: </span>  {<span style="color: #00ff00;">:title-example</span>
+<span class="linenr"> 3: </span>   (<span style="color: #00ffff;">fn</span> [values]
+<span class="linenr"> 4: </span>     <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">Values will have :title and :environment keys,</span>
+<span class="linenr"> 5: </span>     <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">we need to output a data structure consumable</span>
+<span class="linenr"> 6: </span>     <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">by text-com</span>
+<span class="linenr"> 7: </span>     {<span style="color: #00ff00;">:content</span> (<span style="color: #ffaa00;">str</span> (<span style="color: #00ff00;">:title</span> values)
+<span class="linenr"> 8: </span>                    (<span style="color: #00ffff;">when</span> (<span style="color: #ffaa00;">not=</span> (<span style="color: #00ff00;">:environment</span> values) <span style="color: #00ff00;">:production</span>)
+<span class="linenr"> 9: </span>                      <span style="color: #ffff00;">" "</span> (<span style="color: #00ff00;">:environment</span> values)))})})
+<span class="linenr">10: </span>
+<span class="linenr">11: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">our-text-com-payload</span>
+<span class="linenr">12: </span>  <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">State paths tell a component where to look up a value in the</span>
+<span class="linenr">13: </span>  <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">app-state</span>
+<span class="linenr">14: </span>  {<span style="color: #00ff00;">:state-paths</span> {<span style="color: #00ff00;">:title</span>       [<span style="color: #00ff00;">:app-title</span>]
+<span class="linenr">15: </span>                 <span style="color: #00ff00;">:environment</span> [<span style="color: #00ff00;">:env</span> <span style="color: #00ff00;">:id</span>]}
+<span class="linenr">16: </span>   <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">This will create a hashmap:</span>
+<span class="linenr">17: </span>   <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">{:title "Omchaya Title" :environment :development}</span>
+<span class="linenr">18: </span>   <span style="color: #cd0000;">;; </span><span style="color: #cd0000;">to be passed to the transformer</span>
+<span class="linenr">19: </span>   <span style="color: #00ff00;">:transformer-path</span> [<span style="color: #00ff00;">:title-example</span>]})
+<span class="linenr">20: </span>
+<span class="linenr">21: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">com-structure</span>
+<span class="linenr">22: </span>  [{<span style="color: #00ff00;">:sub-com</span> text-com
+<span class="linenr">23: </span>    <span style="color: #00ff00;">:sub-com-payload</span> our-text-com-payload}])
+<span class="linenr">24: </span>
+<span class="linenr">25: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">prep-payload</span> [app-state state-paths transformer-path]
+<span class="linenr">26: </span>  ...)
+<span class="linenr">27: </span>
+<span class="linenr">28: </span>(<span style="color: #00ffff;">defn</span> <span style="color: #4186be;">app-com</span> [app owner opts]
+<span class="linenr">29: </span>  (om/component
+<span class="linenr">30: </span>   (<span style="color: #ffaa00;">map</span> (<span style="color: #00ffff;">fn</span> [{<span style="color: #00ff00;">:keys</span> [sub-com sub-com-payload]}]
+<span class="linenr">31: </span>          (<span style="color: #00ffff;">let</span> [transformed-payload
+<span class="linenr">32: </span>                (prep-payload app
+<span class="linenr">33: </span>                              (<span style="color: #00ff00;">:state-paths</span> sub-com)
+<span class="linenr">34: </span>                              (<span style="color: #00ff00;">:transformer-path</span> sub-com))]
+<span class="linenr">35: </span>            (om/build sub-com transformed-payload)))
+<span class="linenr">36: </span>        (<span style="color: #00ff00;">:sub-coms</span> transformed-payload))))
+<span class="linenr">37: </span>
+<span class="linenr">38: </span>(om/<span style="color: #cdcd00;">root</span> app-com
+<span class="linenr">39: </span>         app-state
+<span class="linenr">40: </span>         {<span style="color: #00ff00;">:target</span> (js/document.<span style="color: #ffaa00;">getElementById</span> <span style="color: #ffff00;">"examples-2"</span>)
+<span class="linenr">41: </span>          <span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:com-structure</span> com-structure}})
+</pre>
+</div>
+</section>
+<section id="sec-4-4" >
+
+<h3>Separation achieved</h3>
+<ul class="org-ul">
+<li>Component-tree &amp; app-state separated
+</li>
+<li>Combined via transforms (just small fns)
+</li>
+<li>Component-tree &amp; path-glue all data now
+</li>
+<li>Example App:
+</li>
+</ul>
+
+<div class="org-src-container">
+
+<pre class="src src-clojure"><span class="linenr">1: </span>(<span style="color: #00ffff;">def</span> <span style="color: #4186be;">app-structure</span>
+<span class="linenr">2: </span>  {<span style="color: #00ff00;">:coms</span> {<span style="color: #00ff00;">:small</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-text-com</span>, <span style="color: #00ff00;">:zr-com-data</span> {}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-payload</span> {<span style="color: #00ff00;">:state-paths</span> {<span style="color: #00ff00;">:open?</span> [<span style="color: #00ff00;">:path</span> nil], <span style="color: #00ff00;">:title</span> [<span style="color: #00ff00;">:path</span> nil], <span style="color: #00ff00;">:content</span> [<span style="color: #00ff00;">:value</span> <span style="color: #ffff00;">"Small context"</span>]}, <span style="color: #00ff00;">:transformer-path</span> [<span style="color: #00ff00;">:identity</span>]}}}}], <span style="color: #00ff00;">:large</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-vertical-split-view</span>, <span style="color: #00ff00;">:zr-com-data</span> {<span style="color: #00ff00;">:sub-coms</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-horizontal-split-view</span>, <span style="color: #00ff00;">:zr-com-data</span> {<span style="color: #00ff00;">:sub-coms</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-tab-bar</span>, <span style="color: #00ff00;">:zr-com-data</span> {<span style="color: #00ff00;">:tabs</span> []}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0], <span style="color: #00ff00;">:zr-constraints</span> nil, <span style="color: #00ff00;">:zr-payload</span> {<span style="color: #00ff00;">:state-paths</span> {<span style="color: #00ff00;">:channels</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:channels</span>]], <span style="color: #00ff00;">:selected-channel</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:selected-channel</span>]], <span style="color: #00ff00;">:comm</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:comms</span> <span style="color: #00ff00;">:controls</span>]]}, <span style="color: #00ff00;">:transformer-path</span> [<span style="color: #00ff00;">:channels-tabs</span>]}}}} {<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-horizontal-split-view</span>, <span style="color: #00ff00;">:zr-com-data</span> {<span style="color: #00ff00;">:sub-coms</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-text-com</span>, <span style="color: #00ff00;">:zr-com-data</span> {}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-1-zr-com-data-sub-coms-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 1 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0], <span style="color: #00ff00;">:zr-constraints</span> nil, <span style="color: #00ff00;">:zr-payload</span> {<span style="color: #00ff00;">:state-paths</span> {<span style="color: #00ff00;">:channels</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:channels</span>]], <span style="color: #00ff00;">:selected-channel</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:selected-channel</span>]], <span style="color: #00ff00;">:content</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:selected-channel</span>]], <span style="color: #00ff00;">:comm</span> [<span style="color: #00ff00;">:path</span> [<span style="color: #00ff00;">:comms</span> <span style="color: #00ff00;">:controls</span>]]}, <span style="color: #00ff00;">:transformer-path</span> [<span style="color: #00ff00;">:content</span>]}}}}]}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-1"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 1], <span style="color: #00ff00;">:zr-constraints</span> {<span style="color: #00ff00;">:top</span> <span style="color: #ffff00;">"== ::parent[top]"</span>, <span style="color: #00ff00;">:width</span> <span style="color: #ffff00;">"== ::parent[width]"</span>, <span style="color: #00ff00;">:height</span> <span style="color: #ffff00;">"== ::parent[height]"</span>}}}}]}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0], <span style="color: #00ff00;">:zr-constraints</span> {<span style="color: #00ff00;">:top</span> <span style="color: #ffff00;">"== ::parent[top]"</span>, <span style="color: #00ff00;">:width</span> <span style="color: #ffff00;">"== ::parent[width]"</span>, <span style="color: #00ff00;">:height</span> <span style="color: #ffff00;">"== ::parent[height]"</span>}}}} {<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-horizontal-split-view</span>, <span style="color: #00ff00;">:zr-com-data</span> {<span style="color: #00ff00;">:sub-coms</span> [{<span style="color: #00ff00;">:zr-com</span> <span style="color: #00ff00;">:zr-drop-down</span>, <span style="color: #00ff00;">:zr-com-data</span> nil, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-1-zr-com-data-sub-coms-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 1 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 0], <span style="color: #00ff00;">:zr-constraints</span> nil, <span style="color: #00ff00;">:zr-payload</span> {<span style="color: #00ff00;">:transformer-path</span> [<span style="color: #00ff00;">:channels-drop-down</span>]}}}}]}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0-zr-com-data-sub-coms-1"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry, <span style="color: #00ff00;">:zr-com-path</span> [0 <span style="color: #00ff00;">:zr-com-data</span> <span style="color: #00ff00;">:sub-coms</span> 1], <span style="color: #00ff00;">:zr-constraints</span> {<span style="color: #00ff00;">:top</span> <span style="color: #ffff00;">"== ::parent[top]"</span>, <span style="color: #00ff00;">:width</span> <span style="color: #ffff00;">"== ::parent[width]"</span>, <span style="color: #00ff00;">:height</span> <span style="color: #ffff00;">"== ::parent[height]"</span>}}}}]}, <span style="color: #00ff00;">:zr-com-opts</span> {<span style="color: #00ff00;">:opts</span> {<span style="color: #00ff00;">:zr-com-id</span> <span style="color: #ffff00;">"zr-com-0"</span>, <span style="color: #00ff00;">:com-registry</span> reg/registry}}}]}})
+</pre>
+</div>
+</section>
+</section>
+<section>
+<section id="sec-5" >
+
+<h2>Why?</h2>
+<p>
+A lot of initial work, for what?
+</p>
+<ul class="org-ul">
+<li>App-state stays focused exactly around our domain
+</li>
+<li>Controller actions are business-logic-specific
+</li>
+<li>Reusable components(!!!)
+</li>
+<li>Reusable transforms
+</li>
+<li>Ultra-responsive design
+</li>
+<li>Highly amenable to tooling
+<ul class="org-ul">
+<li>Interface building
+</li>
+<li>Correctness verification - know if a change on the backend/frontend will break UI, never allow broken UI/app-state to be committed
+</li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<section>
+<section id="sec-6" >
+
+<h2>Demo</h2>
+<p>
+<a href="https://dl.dropboxusercontent.com/u/412963/zenrise/zenrise_preview_intro1.mov">Zenrise Private Preview</a>
+</p>
+</section>
+</section>
+<section>
+<section id="sec-7" >
+
+<h2>Future topics:</h2>
+<ul class="org-ul">
+<li>How do we separate layout from styling?
+</li>
+<li>How can normal JS developers participate?
+</li>
+<li>How far can we take this system?
+</li>
+</ul>
+</section>
+</section>
+</div>
+</div>
+<script src="file:///Users/sgrove/.emacs.d/support/reveal.js/lib/js/head.min.js"></script>
+<script src="file:///Users/sgrove/.emacs.d/support/reveal.js/js/reveal.min.js"></script>
+<script>
+
+        		// Full list of configuration options available here:
+        		// https://github.com/hakimel/reveal.js#configuration
+        		Reveal.initialize({
+        			controls: true,
+        			progress: true,
+        			history: true,
+        			center: true,
+        			rollingLinks: true,
+        			keyboard: true,
+        			overview: true,
+        			 // slide width
+        			 // slide height
+        			 // slide margin
+        			 // slide minimum scaling factor
+        			 // slide maximum scaling factor
+
+
+        			theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+        			transition: Reveal.getQueryHash().transition || 'default', // default/cube/page/concave/zoom/linear/fade/none
+        			transitionSpeed: 'default',
+
+        			// Optional libraries used to extend on reveal.js
+        			dependencies: [
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/markdown/showdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+        				{ src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+        				// { src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/search/search.js', async: true, condition: function() { return !!document.body.classList; } }
+        				// { src: 'file:///Users/sgrove/.emacs.d/support/reveal.js/plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+        			]
+        		});
+</script>
+</body>
+</html>

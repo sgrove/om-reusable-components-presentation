@@ -1,0 +1,345 @@
+#+TITLE: Understanding UI complexity
+#+EMAIL: @sgrove
+#+EMAIL: @sgrove
+#+OPTIONS: num:nil
+* Browser UI Issues
++ Reusability
++ Tooling
++ Correctness
+
+* Why is reusability difficult?
+** Ingredients in UI
++ Component-tree
++ App-state (+ structure)
++ Layout
++ Styling
+
+** Component-tree vs App-state
+
+   Separate ideas, but naturally mutually-infectious
+
+*** Small example
+Chat app with tab-bar control
+#+BEGIN_SRC clojure -n
+    (ns 'examples.small-1
+      (:require [om.core :as om]
+                [om.dom :as dom]))
+    
+    (def app-state
+      (atom :channels {"lobby" {:order 0,
+                                :title "Lobby"}
+                       "the-war-room" {:order 1
+                                       :title "The War Room"}}))
+    
+    (defn navbar-com [data owner opts]
+      (om/component
+       (let [channels (sort-by :order (vals (:channels data)))]
+         (dom/navbar nil
+                     (map (fn [link]
+                            (dom/a nil (:title link))) channels)))))
+    
+    (om/root navbar-com app-state
+             {:target (js/document.getElementById "examples-small-1")})
+#+END_SRC
+
+#+REVEAL: split
++ =navbar-com= already has rudimentary awareness of =app-state='s structure. 
++ Should all consumers of my navbar-com put their links under a =:channels= key?
+
+... Probably not, so let's make it more generic, and change our =app-state= to match.   
+
+#+REVEAL: split
+  #+BEGIN_SRC clojure -n
+    (def app-state
+      (atom :channels {"lobby" {:order 0
+                                :title "Lobby"}
+                       "the-war-room" {:order 1
+                                       :title "The War Room"}}))
+    
+    (defn generic-navbar-com [data owner opts]
+      (om/component
+       (let [make-link (fn [link] (dom/a nil (:title link)))]
+         (dom/navbar nil (map make-link (:sorted-links data))))))
+    
+    (om/root generic-navbar-com
+             (swap! app-state
+                    (fn [state]
+                      (assoc :sorted-links (sort-by :order (vals state)))))
+             {:target (js/document.getElementById "examples-small-1")})
+  #+END_SRC
+#+REVEAL: split
++  =generic-navbar-com= is more generic, but the required structure leaked into our app-state
++  Gets worse as components nest
+
+#+REVEAL: split
+Let's add a drop down menu
+
+#+REVEAL: split
+
+#+BEGIN_SRC clojure -n
+  (defn drop-down-com [data owner opts]
+    (om/component
+     (let [open? (:open? data)
+           dd-item (fn [item]
+                     (dom/li #js {:id (:id item)} (:title item)))]
+       (dom/div nil
+                (dom/h3 nil (str (:title data)))
+                (apply dom/ul nil
+                       (when (:open? data)
+                         (map dd-item (:items data))))))))
+  
+  (defn generic-navbar-com [data owner opts]
+    (om/component
+     (dom/navbar nil
+                 (map (fn [link]
+                        (dom/a nil (:title link))) (:sorted-links data))
+                 (om/build drop-down-com
+                           (om/assoc data
+                             :title (:current-user-email data)
+                             :items [{:id :help :title "Help"}
+                                     {:id :logout :title "Logout"}])))))
+  
+  (om/root navbar-com (swap! app-state
+                             (fn [state]
+                               (assoc :sorted-links
+                                 (sort-by :order (vals state)))))
+           {:target (js/document.getElementById "examples-small-1")})
+  
+  #+END_SRC
+#+REVEAL: split
+
+  + Put knowledge about the internals of the drop-down into our =generic-navbar-com=
+  + *Also* knowledge about our =app-state= structure, so it can transform our app-state into =drop-down-com=-consumable data
+
+** A rock and a hard place
+
++ Put knowledge about our component-structure into our domain-model
++ Or put knowledge of our app-state structure into our component tree
++ Additionally, to modify our component tree, we must open up each function and insert new components in
++ And in any case, it's going to be a nightmare to build tooling around this.
+
+
+* Baby-steps: Components that build components
+
+Can make our components more reusable by
+
+  + Making (much!) smaller components
+  + Requiring components to be more generic in what they accept
+
+To start with, we'll make the navbar accept two components, and the drop-down will accept a sub-component to render
+
+#+REVEAL: split
+
+Generic drop-down component:
+
+  #+BEGIN_SRC clojure -n
+       (defn drop-down-com [data owner opts]
+         (om/component
+          (let [open? (:open? data)
+                dd-item (fn [item]
+                         (dom/li #js {:id (:id item)}
+                                 (om/build (:sub-com data) item)))]
+            (dom/div nil
+                     (dom/h3 nil (str (:title data)))
+                     (apply dom/ul nil
+                            (when (:open? data)
+                              (map dd-item (:items data))))))))
+       
+    
+  #+END_SRC
+
+#+REVEAL: split
+Generic tab component:
+#+BEGIN_SRC clojure -n
+    
+    (defn tab-bar-com [data owner opts]
+      (om/component
+       (dom/div nil
+                (map (fn [link]
+                       (dom/a nil (:title link))) (:sorted-links data)))))
+  #+END_SRC
+
+#+REVEAL: split
+
+Generic nav-bar component:
+#+BEGIN_SRC clojure -n
+    (defn generic-navbar-com [data owner opts]
+      (om/component
+       (dom/navbar nil
+                   (om/build (:sub-com-1 data) (:sub-com-1-data data))
+                   (om/build (:sub-com-2 data) (:sub-com-2-data data)))))
+                   
+  #+END_SRC
+#+REVEAL: split
+Generic text component:
+#+BEGIN_SRC clojure -n
+    
+    (defn text-com [data owner]
+      (om/component
+       (dom/span nil (:content data))))
+  #+END_SRC
+
+#+REVEAL: split
+These are all such small components - are they really useful? Let's see what our app looks like now...
+#+REVEAL: split
+#+BEGIN_SRC clojure -n
+  
+  (om/root navbar-com
+    (swap! app-state
+       (fn [state]
+         (assoc state
+             :sub-com-1 channel-links-com
+             :sub-com-1-data {:sorted-links (sort-by :order (vals state))}
+             :sub-com-2 drop-down-com
+             :sub-com-2-data {:title (:current-user-email state)
+                              :open? true
+                              :sub-com text-com
+                              :items [{:id "help" :title "Help"}
+                                      {:id "logout" :title "Logout"}]})))
+    {:target (js/document.getElementById "examples-small-1")})
+  #+END_SRC
+#+REVEAL: split
+  Overall, a win:
+  + Components are more generic, know little about =app-state= structure when building sub-components
+  + Using this technique, we could start to build up a library of reusable components.
+  + It's a tree! We can build a tool to compose components into other components, building up the tree
+  Still, a lot of that structure has been pushed into =app-state=, making it more difficult to reason about domain-data, app-logic and UI-data.
+
+#+REVEAL: split
+New goal:
++ Separate component-tree from app-state
++ Both should be data, not code
++ Minimize infection in either direction
+
+* Paths, transforms, and separation
+
+   + Need a new mechanism to connect generic components to our domain-data + app-state: **Transforms** & **Paths**
+   + **Transforms** small bits of custom code adapting points in the app-state tree (domain data) to component-consumable data (component-tree)
+   + **Paths** pointers into the app-state tree, e.g [:app-title], [:audio :volume]
+     + Similar to lenses
+
+** Paths & transforms
+#+CAPTION: Paths and transforms select pieces from the app-state and transform them into what a component expects
+[[./img/paths_transforms.png]]
+
+
+** Example
+
+   + Our text component expects a hashmap with a =:content= key
+   + We want text-component content to vary with =app-state= at the paths =[:app-title]= and =[:env]=.
+
+Let's write a simple transformer and wire it up
+
+#+REVEAL: split
+  #+BEGIN_SRC clojure -n
+    (def app-state
+      (atom {:app-title "Omchaya Title"
+             :env {:id :development}}))
+    
+    (defn text-com [data owner opts]
+      (om/component
+       (dom/span nil (:content data))))
+    
+    (defn transform-text [values]
+      ;; Values will have :title and :environment keys,
+      ;; we need to output a data structure consumable
+      ;; by text-com
+      {:content (str (:title values)
+                     (when (not= (:environment values) :production)
+                       " " (:environment values)))})
+    
+    (defn prep-payload [app-state state-paths transform]
+      (let [state-data
+            (into {} (map (fn [[k path]]
+                            [k (get-in app-state path)]) state-paths))]
+        ;; Builds a map, e.g.:
+        ;; {:title <> :environment <>}
+        transformed-payload (transform state-data)))
+    
+    (defn app-com [app owner opts]
+      (om/component
+       (om/build text-com
+                 (prep-payload app {:title [:app-title]
+                                    :environment [:id :development]}
+                               transform-text))))
+  #+END_SRC
+
+** 1 step further...
+
+Let's make it generically applicable...
+#+REVEAL: split
+#+BEGIN_SRC clojure -n
+  (def transform-registry
+    {:title-example
+     (fn [values]
+       ;; Values will have :title and :environment keys,
+       ;; we need to output a data structure consumable
+       ;; by text-com
+       {:content (str (:title values)
+                      (when (not= (:environment values) :production)
+                        " " (:environment values)))})})
+  
+  (def our-text-com-payload
+    ;; State paths tell a component where to look up a value in the
+    ;; app-state
+    {:state-paths {:title       [:app-title]
+                   :environment [:env :id]}
+     ;; This will create a hashmap:
+     ;; {:title "Omchaya Title" :environment :development}
+     ;; to be passed to the transformer
+     :transformer-path [:title-example]})
+  
+  (def com-structure
+    [{:sub-com text-com
+      :sub-com-payload our-text-com-payload}])
+  
+  (defn prep-payload [app-state state-paths transformer-path]
+    ...)
+  
+  (defn app-com [app owner opts]
+    (om/component
+     (map (fn [{:keys [sub-com sub-com-payload]}]
+            (let [transformed-payload
+                  (prep-payload app
+                                (:state-paths sub-com)
+                                (:transformer-path sub-com))]
+              (om/build sub-com transformed-payload)))
+          (:sub-coms transformed-payload))))
+  
+  (om/root app-com
+           app-state
+           {:target (js/document.getElementById "examples-2")
+            :opts {:com-structure com-structure}})
+#+END_SRC 
+
+** Separation achieved
+
++ Component-tree & app-state separated
++ Combined via transforms (just small fns)
++ Component-tree & path-glue all data now
++ Example App:
+
+#+BEGIN_SRC clojure -n
+  (def app-structure
+    {:coms {:small [{:zr-com :zr-text-com, :zr-com-data {}, :zr-com-opts {:opts {:zr-com-id "zr-com-0", :com-registry reg/registry, :zr-payload {:state-paths {:open? [:path nil], :title [:path nil], :content [:value "Small context"]}, :transformer-path [:identity]}}}}], :large [{:zr-com :zr-vertical-split-view, :zr-com-data {:sub-coms [{:zr-com :zr-horizontal-split-view, :zr-com-data {:sub-coms [{:zr-com :zr-tab-bar, :zr-com-data {:tabs []}, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-0", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 0 :zr-com-data :sub-coms 0], :zr-constraints nil, :zr-payload {:state-paths {:channels [:path [:channels]], :selected-channel [:path [:selected-channel]], :comm [:path [:comms :controls]]}, :transformer-path [:channels-tabs]}}}} {:zr-com :zr-horizontal-split-view, :zr-com-data {:sub-coms [{:zr-com :zr-text-com, :zr-com-data {}, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-1-zr-com-data-sub-coms-0", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 0 :zr-com-data :sub-coms 1 :zr-com-data :sub-coms 0], :zr-constraints nil, :zr-payload {:state-paths {:channels [:path [:channels]], :selected-channel [:path [:selected-channel]], :content [:path [:selected-channel]], :comm [:path [:comms :controls]]}, :transformer-path [:content]}}}}]}, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-0-zr-com-data-sub-coms-1", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 0 :zr-com-data :sub-coms 1], :zr-constraints {:top "== ::parent[top]", :width "== ::parent[width]", :height "== ::parent[height]"}}}}]}, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-0", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 0], :zr-constraints {:top "== ::parent[top]", :width "== ::parent[width]", :height "== ::parent[height]"}}}} {:zr-com :zr-horizontal-split-view, :zr-com-data {:sub-coms [{:zr-com :zr-drop-down, :zr-com-data nil, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-1-zr-com-data-sub-coms-0", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 1 :zr-com-data :sub-coms 0], :zr-constraints nil, :zr-payload {:transformer-path [:channels-drop-down]}}}}]}, :zr-com-opts {:opts {:zr-com-id "zr-com-0-zr-com-data-sub-coms-1", :com-registry reg/registry, :zr-com-path [0 :zr-com-data :sub-coms 1], :zr-constraints {:top "== ::parent[top]", :width "== ::parent[width]", :height "== ::parent[height]"}}}}]}, :zr-com-opts {:opts {:zr-com-id "zr-com-0", :com-registry reg/registry}}}]}})
+#+END_SRC
+
+* Why?
+A lot of initial work, for what?
++ App-state stays focused exactly around our domain
++ Controller actions are business-logic-specific
++ Reusable components(!!!)
++ Reusable transforms
++ Ultra-responsive design
++ Highly amenable to tooling
+  + Interface building
+  + Correctness verification - know if a change on the backend/frontend will break UI, never allow broken UI/app-state to be committed
+
+* Demo
+
+[[https://dl.dropboxusercontent.com/u/412963/zenrise/zenrise_preview_intro1.mov][Zenrise Private Preview]]
+
+* Future topics:
+ + How do we separate layout from styling?
+ + How can normal JS developers participate?
+ + How far can we take this system?
